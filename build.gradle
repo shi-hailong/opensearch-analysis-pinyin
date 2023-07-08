@@ -1,28 +1,34 @@
 import java.nio.file.Files
-import org.opensearch.gradle.testclusters.StandaloneRestIntegTestTask
-import org.gradle.api.tasks.Input;
-import org.gradle.process.CommandLineArgumentProvider;
-
-import java.util.LinkedHashMap;
-import java.util.Map;
-import java.util.function.Supplier;
-import java.util.stream.Collectors;
 
 buildscript {
+  ext {
+    opensearch_version = System.getProperty("opensearch.version", "2.8.0")
+  }
+
+  repositories {
+    mavenLocal()
+    maven { url "https://aws.oss.sonatype.org/content/repositories/snapshots" }
+    mavenCentral()
+    maven { url "https://plugins.gradle.org/m2/" }
+  }
+
   dependencies {
-    classpath "org.opensearch.gradle:build-tools:${opensearchVersion}"
+    classpath "org.opensearch.gradle:build-tools:${opensearch_version}"
   }
 }
 
-plugins {
-   id "co.riiid.gradle" version "0.4.2"
-  // the old co.riiid.gradle is not gradle 7.0 compatible
-  // id "com.github.humblerookie.gradle" version "0.4.4"
-  id "com.github.ben-manes.versions" version '0.36.0'
-}
+//plugins {
+//  id "co.riiid.gradle" version "0.4.2"
+//  // the old co.riiid.gradle is not gradle 7.0 compatible
+//  // id "com.github.humblerookie.gradle" version "0.4.4"
+//  id "com.github.ben-manes.versions" version '0.36.0'
+//}
 
 repositories {
+  mavenLocal()
+  maven { url "https://aws.oss.sonatype.org/content/repositories/snapshots" }
   mavenCentral()
+  maven { url "https://plugins.gradle.org/m2/" }
 }
 
 group = 'org.opensearch.plugin'
@@ -41,138 +47,43 @@ opensearchplugin {
   noticeFile = rootProject.file('NOTICE.txt')
 }
 
-
 // In this section you declare the dependencies for your production and test code
 dependencies {
-  compile files('lib/nlp-lang-1.7.jar')
+  implementation files('lib/nlp-lang-1.7.jar')
   // the yaml tests require a log4j2 dependency, otherwise a dependency is thrown on startup
-  runtimeOnly 'org.apache.logging.log4j:log4j-core:2.17.0'
+  runtimeOnly 'org.apache.logging.log4j:log4j-core:2.17.1'
   // testCompile 'org.powermock:powermock-api-mockito:1.6.2'
   // testCompile 'nl.jqno.equalsverifier:equalsverifier:1.7.5'
 }
-
+tasks.withType(JavaCompile) {
+  options.encoding = "UTF-8"
+}
 // ignore javadoc warnings for now
 tasks.withType(Javadoc) {
+  options.encoding = "UTF-8"
   options.addStringOption('Xdoclint:none', '-quiet')
 }
 
-githubRelease.doFirst {
-  if (!System.getProperty('GITHUB_TOKEN', '')) {
-    throw new Exception('Missing property GITHUB_TOKEN')
-  }
-
-  // check if zip file is there
-  assert file("build/distributions/opensearch-analisys-pinyin-${version}.zip").exists()
-
-  // rename zip file
-  def currentVersion = version.replace('-SNAPSHOT', '')
-  def filename = "build/distributions/opensearch-analisys-pinyin-${version}.zip"
-  Files.copy(file("build/distributions/opensearch-analisys-pinyin-${version}.zip").toPath(), file(filename).toPath())
-
-  // configuration
-  github {
-    owner = 'aparo'
-    repo = 'opensearch-analisys-pinyin'
-    token = System.getProperty('GITHUB_TOKEN')
-    tagName = currentVersion
-    assets = [ filename ]
-    targetCommitish = 'main'
-  }
-}
-
-test {
-
-//How to run Gradle test when all tests are UP-TO-DATE?   add below line
-      dependsOn 'cleanTest'
-    //To enable this fail fast behavior so even a one unit test fail it keeps running 
-        failFast = true
-
-      // Give a different location to the gradle html reports in a folder called gradlehtmlReports
-    reports.html.enabled = true
-    reports.html.setDestination(file("$projectDir/gradlehtmlReports"))
-}
-
-// // setup yaml rest tests
-// testClusters {
-//   yamlRestTest
-// }
-
-// sourceSets {
-//   yamlRestTest
-// }
-
-// configurations {
-//   yamlRestTestImplementation.extendsFrom testImplementation
-//   yamlRestTestRuntimeOnly.extendsFrom testRuntimeOnly
-//   restTestSpecs
-// }
-
-// tasks.register('copyRestTestSpecs', Copy) {
-//   from zipTree(configurations.restTestSpecs.singleFile)
-//   into "$buildDir/restResources/restspec"
-// }
-
-// TaskProvider<Zip> bundle = project.getTasks().withType(Zip.class).named("bundlePlugin");
-
-// // Register rest resources with source set
-// sourceSets.yamlRestTest.getOutput().dir("$buildDir/restResources/restspec");
-
-// tasks.register('yamlRestTest', StandaloneRestIntegTestTask) { testTask ->
-//     testTask.dependsOn(bundle, 'copyRestTestSpecs')
-
-//     def cluster = testClusters.yamlRestTest
-//     cluster.plugin(bundle.flatMap(AbstractArchiveTask::getArchiveFile))
-//     testTask.useCluster(testClusters.yamlRestTest)
-
-//     testTask.mustRunAfter(project.getTasks().named("test"))
-//     testTask.setTestClassesDirs(sourceSets.yamlRestTest.getOutput().getClassesDirs())
-//     testTask.setClasspath(sourceSets.yamlRestTest.getRuntimeClasspath())
-
-
-//     SystemPropertyCommandLineArgumentProvider nonInputProperties = new SystemPropertyCommandLineArgumentProvider()
-//     nonInputProperties.systemProperty("tests.rest.cluster", "${-> String.join(",", cluster.getAllHttpSocketURI())}")
-//     nonInputProperties.systemProperty("tests.cluster", "${-> String.join(",", cluster.getAllTransportPortURI())}")
-//     nonInputProperties.systemProperty("tests.clustername", "${-> cluster.getName()}")
-//     testTask.getJvmArgumentProviders().add(nonInputProperties)
-//     testTask.systemProperty("tests.rest.load_packaged", Boolean.FALSE.toString())
-// }
-
-// // this is a bit of a hack to make sure we run the test tests when releasing...
-// check.dependsOn 'yamlRestTest'
-
-// dependencies {
-//   yamlRestTestImplementation "org.opensearch.test:framework:$opensearchVersion"
-//   restTestSpecs "org.opensearch:rest-api-spec:$opensearchVersion"
-// }
-
-// // This will be available in 7.15 in build tools and not manually declared. 
-// public class SystemPropertyCommandLineArgumentProvider implements CommandLineArgumentProvider {
-//     private final Map<String, Object> systemProperties = new LinkedHashMap<>();
-
-//     public void systemProperty(String key, Supplier<String> value) {
-//         systemProperties.put(key, value);
-//     }
-
-//     public void systemProperty(String key, Object value) {
-//         systemProperties.put(key, value);
-//     }
-
-//     @Override
-//     public Iterable<String> asArguments() {
-//         return systemProperties.entrySet()
-//             .stream()
-//             .map(
-//                 entry -> "-D"
-//                     + entry.getKey()
-//                     + "="
-//                     + (entry.getValue() instanceof Supplier ? ((Supplier) entry.getValue()).get() : entry.getValue())
-//             )
-//             .collect(Collectors.toList());
-//     }
-
-//     // Track system property keys as an input so our build cache key will change if we add properties but values are still ignored
-//     @Input
-//     public Iterable<String> getPropertyNames() {
-//         return systemProperties.keySet();
-//     }
-// }
+//githubRelease.doFirst {
+//  if (!System.getProperty('GITHUB_TOKEN', '')) {
+//    throw new Exception('Missing property GITHUB_TOKEN')
+//  }
+//
+//  // check if zip file is there
+//  assert file("build/distributions/opensearch-analisys-pinyin-${version}.zip").exists()
+//
+//  // rename zip file
+//  def currentVersion = version.replace('-SNAPSHOT', '')
+//  def filename = "build/distributions/opensearch-analisys-pinyin-${version}.zip"
+//  Files.copy(file("build/distributions/opensearch-analisys-pinyin-${version}.zip").toPath(), file(filename).toPath())
+//
+//  // configuration
+//  github {
+//    owner = 'aparo'
+//    repo = 'opensearch-analisys-pinyin'
+//    token = System.getProperty('GITHUB_TOKEN')
+//    tagName = currentVersion
+//    assets = [ filename ]
+//    targetCommitish = 'main'
+//  }
+//}
